@@ -14,13 +14,23 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   Map<String, String>? _selectedAreaCode;
   List<Map<String, String>> areaCodes = [];
+  List<Map<String, String>> filteredAreaCodes = [];
   bool isLoadingAreaCodes = true;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _selectedAreaCode = widget.selectedAreaCode;
     _fetchAreaCodes();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchAreaCodes() async {
@@ -28,6 +38,7 @@ class _SettingsPageState extends State<SettingsPage> {
       List<Map<String, String>> fetchedAreaCodes = await fetchAreaCodes();
       setState(() {
         areaCodes = fetchedAreaCodes;
+        filteredAreaCodes = fetchedAreaCodes;
         isLoadingAreaCodes = false;
       });
     } catch (error) {
@@ -57,6 +68,19 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+      filteredAreaCodes = areaCodes
+          .where((areaCode) =>
+              areaCode['kode']!.contains(_searchQuery) ||
+              areaCode['nama']!
+                  .toLowerCase()
+                  .contains(_searchQuery.toLowerCase()))
+          .toList();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -70,24 +94,44 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: isLoadingAreaCodes
           ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              itemCount: areaCodes.length,
-              itemBuilder: (context, index) {
-                final areaCode = areaCodes[index];
-                return ListTile(
-                  title: Text('${areaCode['kode']} - ${areaCode['nama']}'),
-                  trailing: _selectedAreaCode != null &&
-                          _selectedAreaCode!['kode'] == areaCode['kode']
-                      ? const Icon(Icons.check, color: Colors.green)
-                      : null,
-                  onTap: () {
-                    setState(() {
-                      _selectedAreaCode = areaCode;
-                    });
-                    Navigator.pop(context, areaCode);
-                  },
-                );
-              },
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Cari kode atau nama daerah',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: filteredAreaCodes.length,
+                    itemBuilder: (context, index) {
+                      final areaCode = filteredAreaCodes[index];
+                      return ListTile(
+                        title:
+                            Text('${areaCode['kode']} - ${areaCode['nama']}'),
+                        trailing: _selectedAreaCode != null &&
+                                _selectedAreaCode!['kode'] == areaCode['kode']
+                            ? const Icon(Icons.check, color: Colors.green)
+                            : null,
+                        onTap: () {
+                          setState(() {
+                            _selectedAreaCode = areaCode;
+                          });
+                          Navigator.pop(context, areaCode);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
     );
   }
