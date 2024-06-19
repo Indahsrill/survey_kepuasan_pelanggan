@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -21,9 +22,14 @@ class _UploadPageState extends State<UploadPage> {
   CameraController? _controller;
   List<CameraDescription>? cameras;
   bool _isRecording = false;
-  String message = "";
   bool onLoading = false;
+  bool isTakingPicture = false;
+  String message = "";
   Map<String, String>? selectedAreaCode;
+  List<XFile> listFile = [];
+  XFile? videoFile;
+  Timer? timer;
+  bool isRearCam = false;
 
   @override
   void initState() {
@@ -33,9 +39,11 @@ class _UploadPageState extends State<UploadPage> {
 
   Future<void> _initializeCamera() async {
     cameras = await availableCameras();
+    var camId = isRearCam ? cameras!.first : cameras!.last;
     if (cameras != null && cameras!.isNotEmpty) {
-      _controller = CameraController(cameras![0], ResolutionPreset.high);
+      _controller = CameraController(camId, ResolutionPreset.high);
       await _controller?.initialize();
+      _controller!.setFlashMode(FlashMode.off);
       setState(() {});
     }
   }
@@ -43,16 +51,37 @@ class _UploadPageState extends State<UploadPage> {
   @override
   void dispose() {
     _controller?.dispose();
+    timer?.cancel();
     super.dispose();
+  }
+
+  takePicture() async {
+    if (isTakingPicture) return;
+    setState(() {
+      isTakingPicture = true;
+    });
+    listFile.add(await _controller!.takePicture());
+    setState(() {
+      isTakingPicture = false;
+    });
   }
 
   Future<void> _startRecording() async {
     if (!_controller!.value.isInitialized) {
       return;
     }
-    final Directory appDir = await getApplicationDocumentsDirectory();
-    final String videoPath = '${appDir.path}/video.mp4';
-    await _controller?.startVideoRecording();
+    // final Directory appDir = await getApplicationDocumentsDirectory();
+    // final String videoPath = '${appDir.path}/video.mp4';
+    await _controller!.prepareForVideoRecording();
+    await _controller!.startVideoRecording();
+
+    // timer?.cancel();
+    // timer = Timer.periodic(
+    //   Duration(milliseconds: 500),
+    //   (timer) {
+    //     takePicture();
+    //   },
+    // );
     setState(() {
       _isRecording = true;
     });
@@ -62,21 +91,28 @@ class _UploadPageState extends State<UploadPage> {
     if (!_controller!.value.isRecordingVideo) {
       return;
     }
-    final XFile videoFile = await _controller!.stopVideoRecording();
+    try {
+      videoFile = await _controller!.stopVideoRecording();
+      print("FINISH RECORD VIDEO");
+    } on CameraException catch (e) {
+      print("LOG $e");
+    }
+    timer?.cancel();
     setState(() {
       _isRecording = false;
     });
-    await _extractFrames(videoFile.path);
+    // await _extractFrames(videoFile.path);
   }
 
   Future<void> _extractFrames(String videoPath) async {
+    // print("LOG Extracting frame");
     final Directory appDir = await getApplicationDocumentsDirectory();
     final String appPath = appDir.path;
-
+    List<File> selectedfile = [];
     for (int i = 0; i < 5; i++) {
-      final int millisecond = Random().nextInt(
-          5000); // Capture frame at a random time within the first 5 seconds
+      final int millisecond = Random().nextInt(5000);
       final String filePath = '$appPath/frame_$i.jpg';
+      // print("LOG filepath $filePath");
 
       final String? thumbPath = await thumbnail.VideoThumbnail.thumbnailFile(
         video: videoPath,
@@ -91,8 +127,97 @@ class _UploadPageState extends State<UploadPage> {
       if (thumbPath != null) {
         // Upload each frame
         File imageFile = File(thumbPath);
-        await upload(imageFile);
+        selectedfile.add(imageFile);
+        // await upload(imageFile);
       }
+    }
+    await uploadMultiFile(files: selectedfile);
+    setState(() {
+      listFile = [];
+      videoFile = null;
+    });
+  }
+
+  Future<void> uploadMultiFile({
+    List<XFile>? selecterFiles,
+    List<File>? files,
+  }) async {
+    // print("LOG Uploading multi file");
+    var target;
+    files == null ? target = selecterFiles : target = files;
+    DateTime now = DateTime.now();
+    String formatWaktu = DateFormat('yyyyMMddHHmmss').format(now);
+    String? kodeDaerah = selectedAreaCode?['kode'];
+    Uri uri = Uri.parse("http://213.218.240.102/uploadmultifiles/");
+
+    if (kodeDaerah == null || kodeDaerah.isEmpty) {
+      // print("LOG kode daerah null");
+      setState(() {
+        message = "Silakan pilih kode daerah";
+      });
+      return;
+    }
+
+    var request = http.MultipartRequest("POST", uri);
+    for (int i = 0; i < target.length; i++) {
+      var file = target[i];
+      var filename = "$kodeDaerah$formatWaktu-$i.jpg";
+      // print("LOG add request files $filename");
+
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'files',
+          file.path,
+          filename: filename,
+        ),
+      );
+    }
+
+    setState(() {
+      // print("LOG Uploading...");
+
+      onLoading = true;
+      message = "Mengunggah...";
+    });
+
+    try {
+      var response = await request.send().timeout(const Duration(seconds: 50));
+      if (response.statusCode == 200) {
+        setState(() {
+          // print("LOG Berhasil di unggah");
+          message = "Survey Berhasil Diunggah, Terima Kasih!";
+          onLoading = false;
+        });
+        Future.delayed(Duration(seconds: 3), () {
+          setState(() {
+            message = "";
+          });
+        });
+        _showUploadResultDialog(true);
+      } else {
+        setState(() {
+          // print("LOG Gagal unggah, err code ${response.statusCode}");
+          message = "Gagal Mengunggah Survey, Silakan Ulangi";
+          onLoading = false;
+        });
+        Future.delayed(Duration(seconds: 3), () {
+          setState(() {
+            message = "";
+          });
+        });
+        _showUploadResultDialog(false);
+      }
+    } catch (error) {
+      setState(() {
+        message = error.toString();
+        onLoading = false;
+      });
+      Future.delayed(Duration(seconds: 3), () {
+        setState(() {
+          message = "";
+        });
+      });
+      _showUploadResultDialog(false);
     }
   }
 
@@ -209,6 +334,15 @@ class _UploadPageState extends State<UploadPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    var camera;
+    double scale = 1;
+    if (_controller != null) {
+      camera = _controller!.value;
+      scale = screenSize.aspectRatio * camera.aspectRatio;
+      if (scale < 1) scale = 1 / scale;
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: AnimatedTextKit(
@@ -238,16 +372,17 @@ class _UploadPageState extends State<UploadPage> {
           ),
         ],
       ),
-      body: Stack(
+      body: Column(
         children: [
-          Container(
-            color: Colors.white,
-            padding: EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 1,
+          Expanded(
+            child: SizedBox(
+              width: double.infinity,
+              height: screenSize.height * 0.9,
+              // decoration: BoxDecoration(border: Border.all()),
+              // padding: EdgeInsets.all(16.0),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -269,7 +404,7 @@ class _UploadPageState extends State<UploadPage> {
                           color: Color.fromARGB(255, 50, 50, 50),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      // const SizedBox(height: 8),
                       AnimatedSwitcher(
                         duration: Duration(milliseconds: 500),
                         child: message.isNotEmpty
@@ -283,15 +418,17 @@ class _UploadPageState extends State<UploadPage> {
                               )
                             : SizedBox.shrink(),
                       ),
-                      SizedBox(height: 20),
+                      SizedBox(height: 6),
                       Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
                           border: Border.all(
-                              color: Color.fromARGB(255, 23, 26, 30), width: 3),
+                            color: Color.fromARGB(255, 23, 26, 30),
+                            width: 3,
+                          ),
                           borderRadius: BorderRadius.circular(8.0),
                         ),
-                        padding: EdgeInsets.all(16.0),
+                        padding: EdgeInsets.all(8.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -299,198 +436,260 @@ class _UploadPageState extends State<UploadPage> {
                               "📝Langkah-langkah:",
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 25,
+                                fontSize: 16,
                               ),
                             ),
                             SizedBox(height: 12),
                             Text(
                               "1️⃣ Pilih ikon kamera",
-                              style: TextStyle(fontSize: 23),
+                              style: TextStyle(fontSize: 14),
                             ),
                             Text(
                               "2️⃣ Arahkan kamera ke wajah Anda dan ambil video",
-                              style: TextStyle(fontSize: 23),
+                              style: TextStyle(fontSize: 14),
                             ),
                             Text(
                               "3️⃣ Klik 'Mulai' untuk memulai rekaman",
-                              style: TextStyle(fontSize: 23),
+                              style: TextStyle(fontSize: 14),
                             ),
                             Text(
                               "4️⃣ Rekam selama beberapa detik",
-                              style: TextStyle(fontSize: 23),
+                              style: TextStyle(fontSize: 14),
                             ),
                             Text(
                               "5️⃣ Klik 'Selesai' untuk mengakhiri rekaman dan mengunggah",
-                              style: TextStyle(fontSize: 23),
+                              style: TextStyle(fontSize: 14),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  flex: 1,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(height: 80), // Spasi untuk menjaga keselarasan
-                      _controller != null && _controller!.value.isInitialized
-                          ? Container(
-                              width: double.infinity,
-                              height: 400,
-                              child: Stack(
+                      SizedBox(height: 6),
+                      Container(
+                        // decoration: BoxDecoration(border: Border.all()),
+                        padding: EdgeInsets.only(bottom: 20),
+                        child: _controller != null &&
+                                _controller!.value.isInitialized
+                            ? Column(
                                 children: [
-                                  CameraPreview(_controller!),
-                                  Positioned(
-                                    bottom: 16,
-                                    left: 16,
-                                    right: 16,
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceEvenly,
-                                      children: [
-                                        ElevatedButton(
-                                          onPressed: _isRecording
-                                              ? null
-                                              : _startRecording,
-                                          style: ElevatedButton.styleFrom(
-                                            primary: Color.fromARGB(
-                                                255, 53, 165, 57),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            padding: EdgeInsets.symmetric(
-                                                vertical: 16, horizontal: 24),
-                                          ),
-                                          child: Text(
-                                            "Mulai",
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        ElevatedButton(
-                                          onPressed: _isRecording
-                                              ? _stopRecording
-                                              : null,
-                                          style: ElevatedButton.styleFrom(
-                                            primary: Color.fromARGB(
-                                                255, 159, 13, 13),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            padding: EdgeInsets.symmetric(
-                                                vertical: 16, horizontal: 24),
-                                          ),
-                                          child: Text(
-                                            "Selesai",
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(),
+                                    ),
+                                    width: screenSize.width,
+                                    height: screenSize.width * 1.3,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: CameraPreview(_controller!),
                                     ),
                                   ),
+                                  SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      ElevatedButton(
+                                        onPressed: (!_isRecording &&
+                                                _controller != null &&
+                                                _controller!
+                                                    .value.isInitialized)
+                                            ? () async {
+                                                isRearCam = !isRearCam;
+                                                await _initializeCamera();
+                                              }
+                                            : null,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              Color.fromARGB(255, 53, 165, 57),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: 8,
+                                            horizontal: 18,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.cameraswitch,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: _isRecording
+                                            ? null
+                                            : () {
+                                                showAlertDialog(
+                                                  context,
+                                                  () {
+                                                    Navigator.pop(context);
+                                                  },
+                                                  () {
+                                                    setState(() {
+                                                      listFile = [];
+                                                      videoFile = null;
+                                                    });
+                                                    Navigator.pop(context);
+                                                  },
+                                                  "Yakin ingin dihapus?",
+                                                );
+                                              },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              Color.fromARGB(255, 53, 165, 57),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: 8,
+                                            horizontal: 18,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.delete_forever_sharp,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: _isRecording
+                                            ? _stopRecording
+                                            : _startRecording,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              Color.fromARGB(255, 53, 165, 57),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: 8,
+                                            horizontal: 18,
+                                          ),
+                                        ),
+                                        child: !_isRecording
+                                            ? Text(
+                                                "Mulai",
+                                                style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              )
+                                            : Text(
+                                                "Selesai",
+                                                style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () async {
+                                          if (_isRecording)
+                                            return null;
+                                          else {
+                                            if (!listFile.isEmpty ||
+                                                videoFile != null) {
+                                              // await uploadMultiFile(listFile);
+                                              await _extractFrames(
+                                                  videoFile!.path);
+                                            } else {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    "Anda belum mulai merekam.",
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          }
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: (!listFile.isEmpty ||
+                                                      videoFile != null) &&
+                                                  !_isRecording
+                                              ? Color.fromARGB(255, 159, 13, 13)
+                                              : Colors.grey,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: 8,
+                                            horizontal: 18,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          "Kirim",
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ],
+                              )
+                            : Container(
+                                key: Key('camera_preview_loading'),
+                                width: double.infinity,
+                                height: 200,
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
                               ),
-                            )
-                          : Container(
-                              key: Key('camera_preview_loading'),
-                              width: 200,
-                              height: 200,
-                              child: Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            ),
-                      SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () async {
-                          if (_isRecording) {
-                            await _stopRecording();
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text("Anda belum mulai merekam."),
-                              ),
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          primary: _isRecording
-                              ? Color.fromARGB(255, 159, 13, 13)
-                              : Colors.grey,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: EdgeInsets.symmetric(
-                              vertical: 16, horizontal: 24),
-                        ),
-                        child: Text(
-                          _isRecording ? "Selesai Rekaman" : "Kirim Survey",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
                       ),
-                      SizedBox(height: 8),
-                      if (!_isRecording &&
-                          _controller != null &&
-                          _controller!.value.isInitialized)
-                        ElevatedButton(
-                          onPressed: () async {
-                            await _initializeCamera();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            primary: Color.fromARGB(255, 53, 165, 57),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: EdgeInsets.symmetric(
-                                vertical: 16, horizontal: 24),
-                          ),
-                          child: Text(
-                            "Kamera Ulang",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
-          Positioned(
-            bottom: 16,
-            left: 16,
-            right: 16,
-            child: Align(
-              alignment: Alignment.center,
-              child: const Text(
-                '© LPPM UIN Sunan Gunung Djati Bandung 2024',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Color.fromARGB(255, 50, 50, 50),
-                ),
+          Center(
+            child: const Text(
+              '© LPPM UIN Sunan Gunung Djati Bandung 2024',
+              style: TextStyle(
+                fontSize: 16,
+                color: Color.fromARGB(255, 50, 50, 50),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  showAlertDialog(
+    BuildContext context,
+    var cancelFunction,
+    var continueFunction,
+    String message,
+  ) {
+    Widget cancelButton = ElevatedButton(
+      child: Text("Cancel"),
+      onPressed: cancelFunction,
+    );
+    Widget continueButton = ElevatedButton(
+      child: Text("Continue"),
+      onPressed: continueFunction,
+    );
+    AlertDialog alert = AlertDialog(
+      content: Text("$message"),
+      actions: [
+        cancelButton,
+        continueButton,
+      ],
+    );
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
     );
   }
 }
@@ -825,7 +1024,7 @@ class _UploadPageState extends State<UploadPage> {
 //                             }
 //                           },
 //                           style: ElevatedButton.styleFrom(
-//                             primary: Color.fromARGB(255, 53, 165, 57),
+//                             backgroundColor: Color.fromARGB(255, 53, 165, 57),
 //                             shape: RoundedRectangleBorder(
 //                               borderRadius: BorderRadius.circular(8),
 //                             ),
@@ -846,7 +1045,7 @@ class _UploadPageState extends State<UploadPage> {
 //                         ElevatedButton(
 //                           onPressed: getImageCamera,
 //                           style: ElevatedButton.styleFrom(
-//                             primary: Color.fromARGB(255, 159, 13, 13),
+//                             backgroundColor: Color.fromARGB(255, 159, 13, 13),
 //                             shape: RoundedRectangleBorder(
 //                               borderRadius: BorderRadius.circular(8),
 //                             ),

@@ -157,7 +157,7 @@ class _HomePageState extends State<HomePage> {
                               : connectionCheck,
                           style: ElevatedButton.styleFrom(
                             minimumSize: Size(300, 100), // Increase button size
-                            primary: canContinue
+                            backgroundColor: canContinue
                                 ? Color.fromARGB(255, 227, 48, 111)
                                 : Color.fromARGB(255, 227, 48, 111),
                             shape: RoundedRectangleBorder(
