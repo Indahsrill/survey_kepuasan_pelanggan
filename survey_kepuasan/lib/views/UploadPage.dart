@@ -181,7 +181,7 @@ class _UploadPageState extends State<UploadPage> {
     });
 
     try {
-      var response = await request.send().timeout(const Duration(seconds: 50));
+      var response = await request.send().timeout(const Duration(seconds: 200));
       if (response.statusCode == 200) {
         setState(() {
           // print("LOG Berhasil di unggah");
@@ -252,7 +252,7 @@ class _UploadPageState extends State<UploadPage> {
       message = "Mengunggah...";
     });
     try {
-      var response = await request.send().timeout(const Duration(seconds: 50));
+      var response = await request.send().timeout(const Duration(seconds: 100));
       if (response.statusCode == 200) {
         setState(() {
           message = "Survey Berhasil Diunggah, Terima Kasih!";
@@ -345,22 +345,35 @@ class _UploadPageState extends State<UploadPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: AnimatedTextKit(
-          animatedTexts: [
-            TyperAnimatedText(
-              'Survey Kepuasan Pelayanan Kemenag',
-              textStyle: const TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.bold,
-                color: Color.fromARGB(255, 251, 255, 255),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Image.network(
+              'https://upload.wikimedia.org/wikipedia/commons/9/9a/Kementerian_Agama_new_logo.png',
+              width: 40,
+              height: 40,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: AnimatedTextKit(
+                animatedTexts: [
+                  TyperAnimatedText(
+                    'Survey Kepuasan Pelayanan PLHUT Kankemenag Kab. Sumedang',
+                    textStyle: const TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                      color: Color.fromARGB(255, 251, 255, 255),
+                    ),
+                    speed: const Duration(milliseconds: 100),
+                  ),
+                ],
+                isRepeatingAnimation:
+                    true, // Tetapkan ini menjadi true untuk loop tak terbatas
               ),
-              speed: const Duration(milliseconds: 100),
             ),
           ],
-          isRepeatingAnimation: true,
-          totalRepeatCount: 10000,
         ),
-        backgroundColor: Color.fromARGB(255, 227, 48, 111),
+        backgroundColor: Color.fromARGB(255, 91, 183, 96),
         actions: [
           IconButton(
             icon: const Icon(
@@ -373,6 +386,8 @@ class _UploadPageState extends State<UploadPage> {
         ],
       ),
       body: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: SizedBox(
@@ -418,52 +433,7 @@ class _UploadPageState extends State<UploadPage> {
                               )
                             : SizedBox.shrink(),
                       ),
-                      SizedBox(height: 6),
-                      Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Color.fromARGB(255, 23, 26, 30),
-                            width: 3,
-                          ),
-                          borderRadius: BorderRadius.circular(8.0),
-                        ),
-                        padding: EdgeInsets.all(8.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "📝Langkah-langkah:",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            SizedBox(height: 12),
-                            Text(
-                              "1️⃣ Pilih ikon kamera",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                            Text(
-                              "2️⃣ Arahkan kamera ke wajah Anda dan ambil video",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                            Text(
-                              "3️⃣ Klik 'Mulai' untuk memulai rekaman",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                            Text(
-                              "4️⃣ Rekam selama beberapa detik",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                            Text(
-                              "5️⃣ Klik 'Selesai' untuk mengakhiri rekaman dan mengunggah",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 6),
+                      SizedBox(height: 10),
                       Container(
                         // decoration: BoxDecoration(border: Border.all()),
                         padding: EdgeInsets.only(bottom: 20),
@@ -476,8 +446,8 @@ class _UploadPageState extends State<UploadPage> {
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(),
                                     ),
-                                    width: screenSize.width,
-                                    height: screenSize.width * 1.3,
+                                    width: screenSize.width * 0.5,
+                                    height: screenSize.width * 0.3,
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(16),
                                       child: CameraPreview(_controller!),
@@ -507,7 +477,7 @@ class _UploadPageState extends State<UploadPage> {
                                           ),
                                           padding: EdgeInsets.symmetric(
                                             vertical: 8,
-                                            horizontal: 18,
+                                            horizontal: 12,
                                           ),
                                         ),
                                         child: Icon(
@@ -543,7 +513,7 @@ class _UploadPageState extends State<UploadPage> {
                                           ),
                                           padding: EdgeInsets.symmetric(
                                             vertical: 8,
-                                            horizontal: 18,
+                                            horizontal: 12,
                                           ),
                                         ),
                                         child: Icon(
@@ -564,7 +534,7 @@ class _UploadPageState extends State<UploadPage> {
                                           ),
                                           padding: EdgeInsets.symmetric(
                                             vertical: 8,
-                                            horizontal: 18,
+                                            horizontal: 12,
                                           ),
                                         ),
                                         child: !_isRecording
@@ -619,7 +589,7 @@ class _UploadPageState extends State<UploadPage> {
                                           ),
                                           padding: EdgeInsets.symmetric(
                                             vertical: 8,
-                                            horizontal: 18,
+                                            horizontal: 12,
                                           ),
                                         ),
                                         child: Text(

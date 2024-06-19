@@ -93,16 +93,27 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          "Selamat Datang!",
-          style: TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.bold,
-            color: Color.fromARGB(255, 251, 255, 255),
-          ), // Increase the font size here
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.network(
+              'https://upload.wikimedia.org/wikipedia/commons/9/9a/Kementerian_Agama_new_logo.png',
+              width: 40,
+              height: 40,
+            ),
+            const SizedBox(width: 10), // Space between logo and text
+            const Text(
+              "Selamat Datang!",
+              style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: Color.fromARGB(255, 251, 255, 255),
+              ),
+            ),
+          ],
         ),
         centerTitle: true,
-        backgroundColor: Color.fromARGB(255, 227, 48, 111),
+        backgroundColor: Color.fromARGB(255, 91, 183, 96),
       ),
       body: Stack(
         children: [
@@ -125,11 +136,11 @@ class _HomePageState extends State<HomePage> {
                   AnimatedTextKit(
                     animatedTexts: [
                       TyperAnimatedText(
-                        'Survey Kepuasan Pelayanan Kemenag',
+                        'Survey Kepuasan Pelayanan PLHUT Kankemenag Kab. Sumedang',
                         textStyle: const TextStyle(
                           fontSize: 36,
                           fontWeight: FontWeight.bold,
-                          color: Color.fromARGB(255, 50, 50, 50),
+                          color: Color.fromARGB(255, 44, 43, 48),
                         ),
                         speed: const Duration(milliseconds: 100),
                       ),
@@ -142,13 +153,13 @@ class _HomePageState extends State<HomePage> {
                     currentTime,
                     style: const TextStyle(
                       fontSize: 60,
-                      color: Color.fromARGB(255, 50, 50, 50),
+                      color: Color.fromARGB(255, 44, 43, 48),
                     ),
                   ),
                   const SizedBox(height: 80),
                   onLoading
                       ? const SpinKitFadingCircle(
-                          color: Color.fromARGB(255, 227, 48, 111),
+                          color: Color.fromARGB(255, 91, 183, 96),
                           size: 50.0,
                         )
                       : ElevatedButton(
@@ -156,10 +167,10 @@ class _HomePageState extends State<HomePage> {
                               ? () => _navigateToUploadPage(context)
                               : connectionCheck,
                           style: ElevatedButton.styleFrom(
-                            minimumSize: Size(300, 100), // Increase button size
+                            minimumSize: Size(200, 75), // Increase button size
                             backgroundColor: canContinue
-                                ? Color.fromARGB(255, 227, 48, 111)
-                                : Color.fromARGB(255, 227, 48, 111),
+                                ? Color.fromARGB(255, 91, 183, 96)
+                                : Color.fromARGB(255, 91, 183, 96),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
                                   5), // Rounded corners with radius 5
@@ -168,7 +179,7 @@ class _HomePageState extends State<HomePage> {
                           child: Text(
                             canContinue ? "Start" : "Try Again",
                             style: const TextStyle(
-                              fontSize: 45,
+                              fontSize: 30,
                               color: Colors.white,
                             ),
                           ),

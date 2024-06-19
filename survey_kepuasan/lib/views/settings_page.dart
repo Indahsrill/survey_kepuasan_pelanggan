@@ -90,7 +90,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 fontSize: 25,
                 fontWeight: FontWeight.bold,
                 color: Color.fromARGB(255, 251, 255, 255))),
-        backgroundColor: Color.fromARGB(255, 227, 48, 111),
+        backgroundColor: Color.fromARGB(255, 91, 183, 96),
       ),
       body: isLoadingAreaCodes
           ? const Center(child: CircularProgressIndicator())
